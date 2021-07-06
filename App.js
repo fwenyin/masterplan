@@ -1,6 +1,6 @@
 import React from 'react';
 import { LogBox } from "react-native";
-import { Provider as PaperProvider } from "react-native-paper";
+import { DefaultTheme, Provider as PaperProvider } from "react-native-paper";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 
@@ -8,8 +8,11 @@ import ListScreen from "./src/screens/ListScreen";
 import LoginScreen from "./src/screens/LoginScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
 import HomeScreen from "./src/screens/HomeScreen";
+import ScheduleScreen from "./src/screens/ScheduleScreen";
+import WeekScreen from "./src/screens/WeekScreen";
 
 import firebase from "./api/firebase";
+import { colors } from 'react-native-elements';
 
 const Stack = createStackNavigator();
 
@@ -18,6 +21,8 @@ const screens = [
   { name: "Login", component: LoginScreen },
   { name: "Register", component: RegisterScreen },
   { name: "List", component: ListScreen },
+  { name: "Schedule", component: ScheduleScreen },
+  { name: "Week", component: WeekScreen },
 ];
 
 // unfixable "bug" due to Firebase JS SDK's use of long setTimeout
@@ -25,9 +30,19 @@ const screens = [
 // read more at https://github.com/facebook/react-native/issues/12981
 LogBox.ignoreLogs(["Setting a timer for a long period of"]);
 
+const theme = {
+  ...DefaultTheme,
+  roundness: 2,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: "#DEB887",
+    accent: "#FFDBAC",
+  },
+};
+
 export default function App() {
   return (
-    <PaperProvider>
+    <PaperProvider theme = {theme}>
       <NavigationContainer>
         <Stack.Navigator initialRouteName={screens[0].name} headerMode="none" screenOptions={{
         headerStyle: { elevation: 0 },

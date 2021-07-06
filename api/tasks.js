@@ -2,14 +2,14 @@ import firebase from "./firebase";
 
 const db = firebase.database();
 
-const newTask = (id, subject, completed) => ({ id, subject, completed });
+const newTask = (id, subject, deadline, completed) => ({ id, subject, deadline, completed });
 
 export const createTask = async ({ userId, subject }, onSuccess, onError) => {
   try {
     // push generates a new child node on the client side
     // thus allowing us to grab the correct new node id
     const task = db.ref(`tasks/${userId}`).push();
-    await task.set(newTask(task.key, subject, false));
+    await task.set(newTask(task.key, subject, "0000-00-00", false));
     return onSuccess(task);
   } catch (error) {
     return onError(error);
@@ -20,6 +20,16 @@ const setTaskCompletion = async (completed, { userId, taskId }, onSuccess, onErr
   try {
     const task = db.ref(`tasks/${userId}/${taskId}`);
     await task.update({ completed });
+    return onSuccess(task);
+  } catch (error) {
+    return onError(error);
+  }
+}
+
+export const setAddInfo = async (deadline, { userId, taskId }, onSuccess, onError) => {
+  try {
+    const task = db.ref(`tasks/${userId}/${taskId}`); 
+    await task.update({ deadline });
     return onSuccess(task);
   } catch (error) {
     return onError(error);

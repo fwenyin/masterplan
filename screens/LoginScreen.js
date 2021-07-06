@@ -9,22 +9,21 @@ import Brand from "../components/Brand";
 import colors from "../constants/colors";
 
 import * as Authentication from "../../api/auth";
+import { color } from "react-native-elements/dist/helpers";
 
 export default ({ navigation }) => {
-  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const [isRegisterLoading, setIsRegisterLoading] = useState(false);
-  const emailTextInput = useRef();
+  const [isLoginLoading, setIsLoginLoading] = useState(false);
   const passwordTextInput = useRef();
 
-  const handleRegister = () => {
+  const handleLogin = () => {
     Keyboard.dismiss();
-    setIsRegisterLoading(true);
+    setIsLoginLoading(true);
 
-    Authentication.createAccount(
-      { name: username, email, password },
+    Authentication.signIn(
+      { email, password },
       (user) => navigation.dispatch(CommonActions.reset({
         index: 0,
         routes: [{
@@ -33,7 +32,7 @@ export default ({ navigation }) => {
         }]
       })),
       (error) => {
-        setIsRegisterLoading(false);
+        setIsLoginLoading(false);
         return console.error(error);
       }
     );
@@ -41,28 +40,13 @@ export default ({ navigation }) => {
 
   return (
     <Screen scrollable>
-      <View style={{ alignItems: 'center', paddingTop: 20 }}>
+      <View style={{ alignItems: 'center', paddingTop: 60 }}>
         <Brand />
       </View>
 
-      <Text style={styles.title}>Sign up to take charge of your time.</Text>
-      <Text style={styles.subtitle}>Let's create your account!</Text>
+      <Text style={styles.title}>Let's log in to your account!</Text>
 
       <TextInput theme={{ colors: {primary: colors.secondaryDark,underlineColor:'transparent'}}}
-        mode="outlined"
-        label="Your name"
-        style={{ marginTop: 10 }}
-        value={username}
-        onChangeText={setUsername}
-        autoCapitalize="words"
-        returnKeyType="next"
-        onSubmitEditing={() => emailTextInput.current.focus()}
-        blurOnSubmit={false}
-        left={<TextInput.Icon name="account" color={username ? colors.primary : colors.secondaryLight} />}
-      />
-
-      <TextInput theme={{ colors: {primary: colors.secondaryDark,underlineColor:'transparent'}}}
-        ref={emailTextInput}
         mode="outlined"
         label="Email address"
         keyboardType="email-address"
@@ -91,22 +75,23 @@ export default ({ navigation }) => {
 
       <Button
         mode="contained"
-        color={colors.button}
-        style={{ marginTop: 100, borderRadius: 10 }}
+        color= {colors.primary}
+        style={{ marginTop: 20, borderRadius: 10 }}
         contentStyle={{ paddingVertical: 5 }}
-        onPress={handleRegister}
-        loading={isRegisterLoading}
-        disabled={isRegisterLoading}
-      >Create account</Button>
+        onPress={handleLogin}
+        loading={isLoginLoading}
+        disabled={isLoginLoading}
+      >Log in</Button>
+
+      <Text style={styles.subtitle}>Don't have an account?</Text>
 
       <Button
         mode="contained"
-        color={colors.primary}
+        color= {colors.button}
         style={{ marginTop: 20, borderRadius: 10 }}
         contentStyle={{ paddingVertical: 5 }}
-        onPress={() => navigation.goBack()}
-        icon="arrow-left"
-      >Log in instead</Button>
+        onPress={() => navigation.navigate("Register")}
+      >Create an account</Button>
     </Screen>
   );
 }
@@ -119,8 +104,8 @@ const styles = StyleSheet.create({
   },
 
   subtitle: {
-    fontSize: 18,
-    paddingTop: 30,
-    paddingBottom: 10
-  },
+    fontSize: 17,
+    paddingTop: 70,
+    paddingBottom: 0
+  }
 });
