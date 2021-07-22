@@ -9,7 +9,7 @@ import LoginScreen from "./src/screens/LoginScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
 import HomeScreen from "./src/screens/HomeScreen";
 import ScheduleScreen from "./src/screens/ScheduleScreen";
-import WeekScreen from "./src/screens/WeekScreen";
+import ProfileScreen from "./src/screens/ProfileScreen";
 
 import firebase from "./api/firebase";
 import { colors } from 'react-native-elements';
@@ -22,7 +22,7 @@ const screens = [
   { name: "Register", component: RegisterScreen },
   { name: "List", component: ListScreen },
   { name: "Schedule", component: ScheduleScreen },
-  { name: "Week", component: WeekScreen },
+  { name: "Profile", component: ProfileScreen}
 ];
 
 // unfixable "bug" due to Firebase JS SDK's use of long setTimeout

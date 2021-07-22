@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { StyleSheet, View, SectionList, TextInput, Text } from "react-native";
 import { Checkbox, IconButton, List, Menu, Button, Portal, Modal } from "react-native-paper";
 import { CommonActions } from "@react-navigation/native";
-
+import DateTimePickerModal from "react-native-modal-datetime-picker";
 
 import Screen from "../components/Screen";
 
@@ -18,7 +18,8 @@ export default ({ navigation }) => {
   const [userId, setUserId] = useState(Authentication.getCurrentUserId());
   const newTaskRef = useRef();
   const [deadline, setDeadline] = useState("");
-  const [modalData, setModalData] = useState([false, ""]); //[isModalVisible, deadline]
+  const [modalData, setModalData] = useState([false, ""]); //[isModalVisible, taskId]
+  const [visibleDate, setVisibleDate] = useState(false); // for date picker modal
 
   useEffect(() => {
     return Tasks.subscribe(userId, setTasks);
@@ -126,9 +127,22 @@ export default ({ navigation }) => {
                       <View style={styles.viewWrapper}>
                         <View style={styles.modalView}>
                           <Text style={styles.subtitle}>Deadline of task</Text>
-                          <TextInput placeholder="YYYY-MM-DD" 
-                              style={styles.addInfoInput} 
-                              onChangeText={(value) => setDeadline(value)} /> 
+                          <Text style={styles.addInfoInput}>{deadline}</Text>
+
+                          <Button
+                              color= {colors.secondaryDark}
+                              style={{ marginTop: 20, borderRadius: 10 }}
+                              contentStyle={{ paddingVertical: 5 }}
+                              cancelTextIOS= "Close"
+                              onPress={() => setVisibleDate(true)}
+                          >Show Date Picker</Button>
+                          <DateTimePickerModal
+                            isVisible={visibleDate}
+                            mode="date"
+                            onConfirm={(value) => setDeadline(value.toISOString().substring(0,10))}
+                            onCancel={() => setVisibleDate(false)}
+                          />
+
                           <Button
                               mode="contained"
                               color= {colors.primary}
@@ -234,7 +248,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     position: "absolute",
-    height: 300,
+    height: 400,
     width: 350,
     backgroundColor: "#fff",
     borderRadius: 7,

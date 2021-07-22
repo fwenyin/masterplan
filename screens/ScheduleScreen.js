@@ -2,9 +2,9 @@ import React, { useEffect, useState, useRef } from "react";
 import { Pressable, StyleSheet, Keyboard, View, TextInput, Alert, TouchableOpacity } from "react-native";
 import { Button, Portal, Modal, IconButton, Card, Text } from "react-native-paper";
 import { TimePickerModal } from 'react-native-paper-dates';
-//import DateTimePicker from '@react-native-community/datetimepicker';
 import { CommonActions } from "@react-navigation/native";
 import {Agenda} from 'react-native-calendars';
+import DateTimePickerModal from "react-native-modal-datetime-picker";
 
 import Screen from "../components/Screen";
 
@@ -18,6 +18,7 @@ export default ({ navigation }) => {
   const [isModalVisible, setModalVisibility] =useState(false); 
   const [visibleStart, setVisibleStart] = useState(false); // for time picker modal
   const [visibleStop, setVisibleStop] = useState(false); // for time picker modal
+  const [visibleDate, setVisibleDate] = useState(false); // for date picker modal
   const [NUSModsLink, setNUSModsLink] = useState("");
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
@@ -26,6 +27,7 @@ export default ({ navigation }) => {
   const newEventRef = useRef();
   const [events, setEvents] = useState({});
   const [items, setItems] = useState({}); // events for each day
+  const [mods, setMods] = useState({}); //for NUSMods modules
 
   useEffect(() => {
     return Events.subscribe(userId, setEvents);
@@ -45,6 +47,8 @@ export default ({ navigation }) => {
         sortedEvents[sorted[i].date].push({
           time: "Time: " + sorted[i].startTime + ' - ' + sorted[i].stopTime,
           title: sorted[i].title,
+          id: sorted[i].id,
+          fromLink: sorted[i].fromLink,
           height: 80,
         });
       }
@@ -57,9 +61,14 @@ export default ({ navigation }) => {
       <TouchableOpacity style={{marginRight: 10, marginTop: 17}}>
         <Card>
           <Card.Content>
-            <View>
-              <Text style={styles.time}>{item.time}</Text>
-              <Text style={styles.description}>{item.title}</Text>
+            <View style={[{flexDirection: 'row' }]}>
+              <View>
+                <Text style={styles.time}>{item.time}</Text>
+                <Text style={styles.description}>{item.title}</Text>
+              </View>
+              <View style={{ paddingHorizontal: 115}}>
+                <IconButton icon="close" onPress={() => handleDeleteEvent(item.id)} />
+              </View>
             </View>
           </Card.Content>
         </Card>
@@ -67,51 +76,86 @@ export default ({ navigation }) => {
     );
   };
 
+  const sleep = (milliseconds) => {
+    const date = Date.now();
+    let currentDate = null;
+    do {
+      currentDate = Date.now();
+    } while (currentDate - date < milliseconds);
+  }
+
   const handleSync = () => {
-    // figure how to add link into database? and also change the timetable according to link
     const link = NUSModsLink;
-    if (!link.includes("https://nusmods.com/timetable")) // is this needed?
+    if (!link.includes("https://nusmods.com/timetable")) {
       return alert("invalid link");
+    } // is this needed?
+
+    //remove all events from previous NUSMods link (if any)
+    for (i = 0; i < items.length; i++) {
+      if (items[i].fromLink) {
+        handleDeleteEvent(items.id);
+      }
+    }
+
+    
     const modules = link.split('?')[1].split('&');
     // BT2102=LAB:8,LEC:1&CS2030=LAB:10G,REC:01,LEC:1&EC1301=TUT:E23,LEC:1&IS2101=SEC:G08
     for (i = 0; i < modules.length; i++) {
         const moduleCode = modules[i].split('=')[0];
         const lessonSlots = modules[i].split('=')[1].split(','); //array of eg.LAB:10G
-        const moduleFromApi = getModuleFromApi(moduleCode);
-        for (i = 0; i < lessonSlots.length; i++) {
+        const moduleFromApi = async () => { 
+          const response = await fetch("https://api.nusmods.com/v2/2021-2022/modules/" + moduleCode + ".json")
+          .then(response => response.json())
+          .then(data => data.semesterData[0].timetable)
+          .catch(error => console.error(error));
+
+          return response;
+        };
+        //sleep(3000);
+        
+        for (j = 0; j < lessonSlots.length; j++) {
+          const matched = moduleFromApi().filter((object) => lessonSlots[j].split(':')[1] === object["classNo"] || 
+              lessonSlots[j].split(':')[0].equalsIgnoreCase(object.lessonType.substring(0,2)));
+          //console.log(matched);
+          /*
           for (j = 0; j < moduleFromApi.length; j++) {
             if (lessonSlots[i].split(':')[0].equalsIgnoreCase(moduleFromApi[j].lessonType.substring(0,2)) 
-            && lessonSlots[i].split(':')[1] === moduleFromApi[j].classNo) 
-              /* setdata in database(?)
-              * moduleCode + moduleFromApi[j].lessonType (description)
-              * moduleFromApi[j].startTime
-              * moduleFromApi[j].endTime
-              * moduleFromApi[j].weeks
-              * moduleFromApi[j].day
-              */
-              return Schedule.createSchedule(
-                { userId, week, day, startTime, endTime, description },
+            && lessonSlots[i].split(':')[1] === moduleFromApi[j].classNo) {
+              const description = moduleCode + moduleFromApi[j].lessonType;
+              const dateInput = Events.nusStartDate[moduleFromApi[j].weeks];
+              const dayInput = Events.weekToDays[moduleFromApi[j].day];
+              return Events.createEvent(true, userId, description, addDays(dateInput, dayInput), moduleFromApi[j].startTime, moduleFromApi[j].endTime,
                 () => {},
-                console.error
-              );
+                console.error);
+            }
           }
-            
+          */  
         }
+        
     }
   }
 
-  const getModuleFromApi = async (moduleCode) => {
-    try {
-      let moduleCode = moduleCode;
-      let response = await fetch(
-        'https://api.nusmods.com/v2/2021-2022/modules/${moduleCode}.json'
-      );
-      let json = await response.json();
-      return json.semesterData.timetable;
-    } catch (error) {
-       console.error(error);
-    }
+  const ciEquals = (a, b) => {
+    return typeof a === 'string' && typeof b === 'string'
+        ? a.localeCompare(b, undefined, { sensitivity: 'accent' }) === 0
+        : a === b;
+}
+
+  const addDays = (date, days)  => {
+    var result = new Date(date);
+    result.setDate(result.getDate() + days);
+    return result.toISOString().substring(0,10);
   }
+
+  /*
+  const getModuleFromApi = async (moduleCode) => { 
+    fetch("https://api.nusmods.com/v2/2021-2022/modules/" + moduleCode + ".json")
+      .then(response => response.json())
+      .then(data =>  {return data.semesterData[0].timetable})
+      .catch(error => console.error(error));
+
+  }
+  */
 
   const toggleModalVisibility = () => {
     setModalVisibility((isModalVisible) => !isModalVisible);
@@ -130,11 +174,18 @@ export default ({ navigation }) => {
   const handleAddEvent = () => {
     setModalVisibility((isModalVisible) => !isModalVisible);
     newEventRef.current.clear();
+    //add reccos
 
-    return Events.createEvent({userId, title, date, startTime, stopTime},
+    return Events.createEvent(false, {userId, title, date, startTime, stopTime},
       () => {},
       console.error);
   }
+
+  const handleDeleteEvent = (eventId) => Events.deleteEvent(
+    { userId: Authentication.getCurrentUserId(), eventId },
+    () => {},
+    console.error
+  );
 
   return (
     <Screen style={[styles.container, { flexDirection: "column" }]}>
@@ -210,18 +261,28 @@ export default ({ navigation }) => {
                   onChangeText={(value) => setTitle(value)}
                 />
                 <Text style={styles.subtitle}>Date</Text>
-                <TextInput
-                  style={styles.addInfoInput}
-                  placeholder={"YYYY-MM-DD"}
-                  onChangeText={(value) => setDate(value)}
+
+
+                <Text style={styles.addInfoInput}>{date}</Text>
+                <Button
+                    color= {colors.secondaryDark}
+                    style={styles.addInfoInput}
+                    cancelTextIOS= "Close"
+                    onPress={() => setVisibleDate(true)}
+                >Show Date Picker</Button>
+                <DateTimePickerModal
+                  isVisible={visibleDate}
+                  mode="date"
+                  onConfirm={(value) => setDate(value.toISOString().substring(0,10))}
+                  onCancel={() => setVisibleDate(false)}
                 />
+
                 <Text style={styles.subtitle}>Time</Text>
                 <TimePickerModal
                   visible={visibleStart}
                   onDismiss={() => setVisibleStart(false)}
                   onConfirm={(value) => handleStartTime(value)}
                   cancelLabel="Close"
-                  confirmLabel="Select"
                   animationType="fade" // optional, default is 'none'
                 />
                 <View style={styles.timeContainer}>
@@ -238,7 +299,6 @@ export default ({ navigation }) => {
                   onDismiss={() => setVisibleStop(false)}
                   onConfirm={(value) => handleStopTime(value)}
                   cancelLabel="Close"
-                  confirmLabel="Select"
                   animationType="fade"
                 />
                 <View style={styles.timeContainer}>
@@ -317,7 +377,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     position: "absolute",
-    height: 500,
+    height: 600,
     width: 400,
     backgroundColor: "#fff",
     borderRadius: 7,
