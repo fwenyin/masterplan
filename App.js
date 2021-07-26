@@ -22,7 +22,7 @@ const screens = [
   { name: "Register", component: RegisterScreen },
   { name: "List", component: ListScreen },
   { name: "Schedule", component: ScheduleScreen },
-  { name: "Profile", component: ProfileScreen}
+  { name: "Profile", component: ProfileScreen }
 ];
 
 // unfixable "bug" due to Firebase JS SDK's use of long setTimeout

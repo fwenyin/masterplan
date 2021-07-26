@@ -1,10 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Pressable, StyleSheet, Keyboard, View, TextInput, Alert, TouchableOpacity } from "react-native";
-import { Button, Portal, Modal, IconButton, Card, Text } from "react-native-paper";
+import { Button, Portal, Modal, IconButton, Card, Text, Switch } from "react-native-paper";
 import { TimePickerModal } from 'react-native-paper-dates';
-//import DateTimePicker from '@react-native-community/datetimepicker';
-import { CommonActions } from "@react-navigation/native";
 import {Agenda} from 'react-native-calendars';
+import DateTimePickerModal from "react-native-modal-datetime-picker";
 
 import Screen from "../components/Screen";
 
@@ -12,13 +11,14 @@ import colors from "../constants/colors";
 
 import * as Authentication from "../../api/auth";
 import * as Events from "../../api/events";
+import * as Profile from "../../api/profile";
 
 export default ({ navigation }) => {
   const [userId, setUserId] = useState(Authentication.getCurrentUserId());
-  const [isModalVisible, setModalVisibility] =useState(false); 
+  const [isModalVisible, setModalVisibility] = useState(false); // for events
   const [visibleStart, setVisibleStart] = useState(false); // for time picker modal
   const [visibleStop, setVisibleStop] = useState(false); // for time picker modal
-  const [NUSModsLink, setNUSModsLink] = useState("");
+  const [visibleDate, setVisibleDate] = useState(false); // for date picker modal
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -26,6 +26,9 @@ export default ({ navigation }) => {
   const newEventRef = useRef();
   const [events, setEvents] = useState({});
   const [items, setItems] = useState({}); // events for each day
+  const [isSwitchOn, setIsSwitchOn] = useState(false); // recomendation switch
+  const [profile, setProfile] = useState(null);
+  const [cleanedProfile, setCleanedProfile] = useState({});
 
   useEffect(() => {
     return Events.subscribe(userId, setEvents);
@@ -44,7 +47,11 @@ export default ({ navigation }) => {
         }
         sortedEvents[sorted[i].date].push({
           time: "Time: " + sorted[i].startTime + ' - ' + sorted[i].stopTime,
+          startTime: parseInt(sorted[i].startTime.split(':')[0] + sorted[i].startTime.split(':')[1]),
+          stopTime: parseInt(sorted[i].stopTime.split(':')[0] + sorted[i].stopTime.split(':')[1]),
           title: sorted[i].title,
+          id: sorted[i].id,
+          fromLink: sorted[i].fromLink,
           height: 80,
         });
       }
@@ -52,14 +59,32 @@ export default ({ navigation }) => {
     }
   }, [events]);
 
+  useEffect(() => {
+    return Profile.subscribe(userId, setProfile);
+  }, []);
+
+  useEffect(() => {
+    if (profile) {
+      const object = {};
+      const profileObject = Object.values(profile)[0];
+      object[profileObject.id] = profileObject.subject;
+      setCleanedProfile(object);
+    }
+  }, [profile]);
+
   const renderEvent = (item) => {
     return (
       <TouchableOpacity style={{marginRight: 10, marginTop: 17}}>
         <Card>
           <Card.Content>
-            <View>
-              <Text style={styles.time}>{item.time}</Text>
-              <Text style={styles.description}>{item.title}</Text>
+            <View style={[{flexDirection: 'row' }]}>
+              <View>
+                <Text style={styles.time}>{item.time}</Text>
+                <Text style={styles.description}>{item.title}</Text>
+              </View>
+              <View style={{position: 'absolute', right: 0}}>
+                <IconButton icon="close" onPress={() => handleDeleteEvent(item.id)} />
+              </View>
             </View>
           </Card.Content>
         </Card>
@@ -67,51 +92,108 @@ export default ({ navigation }) => {
     );
   };
 
-  const handleSync = () => {
-    // figure how to add link into database? and also change the timetable according to link
-    const link = NUSModsLink;
-    if (!link.includes("https://nusmods.com/timetable")) // is this needed?
-      return alert("invalid link");
-    const modules = link.split('?')[1].split('&');
-    // BT2102=LAB:8,LEC:1&CS2030=LAB:10G,REC:01,LEC:1&EC1301=TUT:E23,LEC:1&IS2101=SEC:G08
-    for (i = 0; i < modules.length; i++) {
-        const moduleCode = modules[i].split('=')[0];
-        const lessonSlots = modules[i].split('=')[1].split(','); //array of eg.LAB:10G
-        const moduleFromApi = getModuleFromApi(moduleCode);
-        for (i = 0; i < lessonSlots.length; i++) {
-          for (j = 0; j < moduleFromApi.length; j++) {
-            if (lessonSlots[i].split(':')[0].equalsIgnoreCase(moduleFromApi[j].lessonType.substring(0,2)) 
-            && lessonSlots[i].split(':')[1] === moduleFromApi[j].classNo) 
-              /* setdata in database(?)
-              * moduleCode + moduleFromApi[j].lessonType (description)
-              * moduleFromApi[j].startTime
-              * moduleFromApi[j].endTime
-              * moduleFromApi[j].weeks
-              * moduleFromApi[j].day
-              */
-              return Schedule.createSchedule(
-                { userId, week, day, startTime, endTime, description },
-                () => {},
-                console.error
-              );
-          }
-            
-        }
-    }
+  const datediff = (first, second) => {
+    return Math.round((second-first)/(1000*60*60*24));
   }
 
-  const getModuleFromApi = async (moduleCode) => {
-    try {
-      let moduleCode = moduleCode;
-      let response = await fetch(
-        'https://api.nusmods.com/v2/2021-2022/modules/${moduleCode}.json'
-      );
-      let json = await response.json();
-      return json.semesterData.timetable;
-    } catch (error) {
-       console.error(error);
-    }
+  function addDays(date, days) {
+    var result = new Date(date);
+    result.setDate(result.getDate() + days);
+    return result;
   }
+
+  
+  const recommendSchedule = (date) => {
+    addRecommendation(addDays(new Date(Date.now()), 1));
+    if (datediff(new Date(date), new Date(Date.now())) <= 2) {
+      return addRecommendation(addDays(new Date(date), -1));
+    }
+    if (datediff(new Date(date), new Date(Date.now())) <= 7) {
+      addRecommendation(addDays(new Date(Date.now()), 2));
+      return addRecommendation(addDays(new Date(date), -1));
+    }
+    if (datediff(new Date(date), new Date(Date.now())) <= 30) {
+      addRecommendation(addDays(new Date(Date.now()), 8));
+      return addRecommendation(addDays(new Date(date), -1));
+    }
+    if (datediff(new Date(date), new Date(Date.now())) <= 90) {
+      addRecommendation(addDays(new Date(Date.now()),15));
+      return addRecommendation(addDays(new Date(date), -1));
+    }
+    if (datediff(new Date(date), new Date(Date.now())) <= 180) {
+      addRecommendation(addDays(new Date(Date.now()), 31));
+      return addRecommendation(addDays(new Date(date), -1));
+    }
+    return addRecommendation(addDays(new Date(date), -1));
+  }
+
+  const addRecommendation = (date) => {
+    const dict = {
+      'morning': {
+        startTime: 1000,
+        stopTime: 1200
+      },
+      'afternoon': {
+        startTime: 1400,
+        stopTime: 1800
+      },
+      'night': {
+        startTime: 1930,
+        stopTime: 2330
+      }
+    };
+    const dateString = date.toISOString().substring(0,10);
+    const start = dict[Object.values(cleanedProfile)[0]].startTime;
+    const stop = dict[Object.values(cleanedProfile)[0]].stopTime;
+    const list = [];
+    const itemsOnDate = items[dateString];
+    const description = "study session for " + title;
+    if (itemsOnDate) {
+      for (let i = 0; i < itemsOnDate.length; i++) {
+        if (start < itemsOnDate[i].startTime < stop || start < itemsOnDate[i].stopTime < stop) {
+          list.push(itemsOnDate[i]);
+        }
+      }
+    }
+    if (list.length === 0) {
+      alert("study session created on: " + dateString);
+      return Events.createStudy(false, {userId}, description, dateString, 
+        start.toString().substring(0,2) + ":" + start.toString().substring(2,4), 
+        (start + 100).toString().substring(0,2) + ":" + start.toString().substring(2,4),
+        () => {},
+        console.error);
+    }
+    if (start + 100 < list[0].startTime) { 
+      alert("study session created on: " + dateString);
+      return Events.createStudy(false, {userId}, description, dateString, 
+        start.toString().substring(0,2) + ":" + start.toString().substring(2,4), 
+        (start + 100).toString().substring(0,2) + ":" + start.toString().substring(2,4),
+        () => {},
+        console.error);
+    }
+    if (stop - 100 > list[list.length-1].stopTime) {
+      alert("study session created on: " + dateString);
+      return Events.createStudy(false, {userId}, description, dateString, 
+        (stop - 100).toString().substring(0,2) + ":" + stop.toString().substring(2,4), 
+        (stop).toString().substring(0,2) + ":" + stop.toString().substring(2,4),
+        () => {},
+        console.error);
+    }
+    for (let i = 0; i < list.length-1; i++) {
+      alert("study session created on: " + dateString);
+      if (list[i].stopTime + 100 < list[i+1].startTime) {
+        return Events.createStudy(false, {userId}, description, dateString, 
+          list[i].stopTime.toString().substring(0,2) + ":" +list[i].stopTime.toString().substring(2,4), 
+          (list[i].stopTime + 100).toString().substring(0,2) + ":" + list[i].stopTime.toString().substring(2,4),
+          () => {},
+          console.error);
+      }
+    }
+    return;
+  }
+
+ 
+ const onToggleSwitch = () => setIsSwitchOn(!isSwitchOn);
 
   const toggleModalVisibility = () => {
     setModalVisibility((isModalVisible) => !isModalVisible);
@@ -130,23 +212,25 @@ export default ({ navigation }) => {
   const handleAddEvent = () => {
     setModalVisibility((isModalVisible) => !isModalVisible);
     newEventRef.current.clear();
+    
+    if (isSwitchOn) {
+      recommendSchedule(date);
+    }
 
-    return Events.createEvent({userId, title, date, startTime, stopTime},
+    return Events.createEvent(false, {userId, title, date, startTime, stopTime},
       () => {},
       console.error);
   }
 
+  const handleDeleteEvent = (eventId) => Events.deleteEvent(
+    { userId: Authentication.getCurrentUserId(), eventId },
+    () => {},
+    console.error
+  );
+
   return (
     <Screen style={[styles.container, { flexDirection: "column" }]}>
       <View style={{ flex: 1 }}>
-        <View style={styles.linkContainer}>
-          <TextInput
-            style={styles.textInput}
-            placeholder={`Input your NUSMods link to sync your timetable!`}
-            onChangeText={setNUSModsLink}
-            onSubmitEditing={handleSync}
-          />
-        </View>
         <Agenda
           theme={{backgroundColor: "#F5DEB3",
                   calendarBackground: "#F5DEB3", 
@@ -171,7 +255,7 @@ export default ({ navigation }) => {
                 alignContent: "center",
               }}
             >
-              <Text style={styles.noEventsText}>No events for today</Text>
+              <Text style={styles.noEventsText}>No events</Text>
             </View>
           )}
         />
@@ -191,6 +275,7 @@ export default ({ navigation }) => {
             Add Event
           </Button>
         </View>
+
         <Portal>
           <Modal
             animationType="slide"
@@ -210,18 +295,28 @@ export default ({ navigation }) => {
                   onChangeText={(value) => setTitle(value)}
                 />
                 <Text style={styles.subtitle}>Date</Text>
-                <TextInput
-                  style={styles.addInfoInput}
-                  placeholder={"YYYY-MM-DD"}
-                  onChangeText={(value) => setDate(value)}
+
+
+                <Text style={styles.addInfoInput}>{date}</Text>
+                <Button
+                    color= {colors.secondaryDark}
+                    style={styles.addInfoInput}
+                    cancelTextIOS= "Close"
+                    onPress={() => setVisibleDate(true)}
+                >Show Date Picker</Button>
+                <DateTimePickerModal
+                  isVisible={visibleDate}
+                  mode="date"
+                  onConfirm={(value) => setDate(value.toISOString().substring(0,10))}
+                  onCancel={() => setVisibleDate(false)}
                 />
+
                 <Text style={styles.subtitle}>Time</Text>
                 <TimePickerModal
                   visible={visibleStart}
                   onDismiss={() => setVisibleStart(false)}
                   onConfirm={(value) => handleStartTime(value)}
                   cancelLabel="Close"
-                  confirmLabel="Select"
                   animationType="fade" // optional, default is 'none'
                 />
                 <View style={styles.timeContainer}>
@@ -238,7 +333,6 @@ export default ({ navigation }) => {
                   onDismiss={() => setVisibleStop(false)}
                   onConfirm={(value) => handleStopTime(value)}
                   cancelLabel="Close"
-                  confirmLabel="Select"
                   animationType="fade"
                 />
                 <View style={styles.timeContainer}>
@@ -249,6 +343,10 @@ export default ({ navigation }) => {
                     {"Pick stop time "}
                   </Button>
                   <Text style={styles.timeInput}>{stopTime}</Text>
+                </View>
+                <View style={styles.switchContainer}>
+                  <Switch value={isSwitchOn} onValueChange={onToggleSwitch} />
+                  <Text style={{paddingTop:7, fontSize: 17}}>Exam? Get study plan!</Text>
                 </View>
                 <Button
                   mode="contained"
@@ -264,18 +362,21 @@ export default ({ navigation }) => {
         </Portal>
         <View style={{paddingTop: 25, flexDirection: "row", alignItems: "center"}}>
           <Button
-            style ={{paddingHorizontal: 100}}
+            style ={{paddingHorizontal: 50}}
             icon="format-list-bulleted" labelStyle={{ fontSize: 30 }} color={colors.button} onPress={() => navigation.navigate("List")}>
           </Button> 
           <Button
             icon="calendar" labelStyle={{ fontSize: 30 }} color={colors.button}>
           </Button>
+          <Button
+            style ={{paddingHorizontal: 65}}
+            icon="account-circle" labelStyle={{ fontSize: 30 }} color={colors.button} onPress={() => navigation.navigate("Profile")}>
+           </Button>
         </View>
       </View>
     </Screen>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: {
@@ -306,6 +407,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
 
+  switchContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: 250,
+    paddingTop: 30,
+    paddingVertical: 15,
+  },
+
   viewWrapper: {
     flex: 1,
     alignItems: "center",
@@ -317,7 +426,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     position: "absolute",
-    height: 500,
+    height: 650,
     width: 400,
     backgroundColor: "#fff",
     borderRadius: 7,
@@ -373,5 +482,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: colors.secondaryDark,
     fontWeight: "bold"
-  }
+  },
 });

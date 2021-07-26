@@ -2,8 +2,7 @@ import firebase from "./firebase";
 
 const db = firebase.database();
 
-const newEvent = (id, title, date, startTime, stopTime) => ({ id, title, date, startTime, stopTime });
-const newNUSModsLink = (id, link) => ({ id, link });
+const newEvent = (id, title, date, startTime, stopTime, fromLink) => ({ id, title, date, startTime, stopTime, fromLink });
 
 // dates accurate for AY2021 only
 const nusStartDate = {
@@ -23,7 +22,7 @@ const nusStartDate = {
 } 
 
 // to get the exact date of event, add value(days) to the monday of each week according to current day
-const weektoDays = {
+const weekToDays = {
   "Monday": 0,
   "Tuesday": 1,
   "Wednesday": 2,
@@ -33,33 +32,41 @@ const weektoDays = {
 
 // values for AY2021 only
 const daysInMonth = {
-  "08": 31,
-  "09": 30,
+  "8": 31,
+  "9": 30,
   "10": 31,
   "11": 30,
   "12": 31
 }
 
-// shouldnt have link in database, just derive schedule
-export const createNUSModsLink = async ({ userId, link }, onSuccess, onError) => {
+export const createEvent = async (fromLink, { userId, title, date, startTime, stopTime }, onSuccess, onError) => {
   try {
     // push generates a new child node on the client side
     // thus allowing us to grab the correct new node id
-    const NUSModslink = db.ref(`link/${userId}`).push();
-    await NUSModslink.set(newNUSModsLink(NUSModslink.key, link));
-    return onSuccess(NUSModslink);
+    const event = db.ref(`events/${userId}`).push();
+    await event.set(newEvent(event.key, title, date, startTime, stopTime, fromLink));
+    return onSuccess(event);
   } catch (error) {
     return onError(error);
   }
 }
 
-export const createEvent = async ({ userId, title, date, startTime, stopTime }, onSuccess, onError) => {
+export const createStudy = async (fromLink, { userId}, title, date, startTime, stopTime, onSuccess, onError) => {
   try {
     // push generates a new child node on the client side
     // thus allowing us to grab the correct new node id
     const event = db.ref(`events/${userId}`).push();
-    await event.set(newEvent(event.key, title, date, startTime, stopTime));
+    await event.set(newEvent(event.key, title, date, startTime, stopTime, fromLink));
     return onSuccess(event);
+  } catch (error) {
+    return onError(error);
+  }
+}
+
+export const deleteEvent = async ({ userId, eventId }, onSucess, onError) => {
+  try {
+    await db.ref(`events/${userId}/${eventId}`).remove();
+    return onSucess();
   } catch (error) {
     return onError(error);
   }

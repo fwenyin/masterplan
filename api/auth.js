@@ -37,6 +37,8 @@ export const getCurrentUserId = () => auth.currentUser ? auth.currentUser.uid : 
 
 export const getCurrentUserName = () => auth.currentUser ? auth.currentUser.displayName : null;
 
+export const getCurrentEmail = () => auth.currentUser ? auth.currentUser.email : null;
+
 export const setOnAuthStateChanged = (onUserAuthenticated, onUserNotFound) => auth.onAuthStateChanged((user) => {
   if (user) {
     return onUserAuthenticated(user);
