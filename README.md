@@ -20,10 +20,10 @@ We created a mobile application whereby students will be able to see their daily
 
 
 ## 5. Frameworks used
-Reactnative (to display elements on a mobile application)
-Javascript (to animate or create logic)
-Firebase (to connect with the front end and logic for database queries)
-Expo (to deploy mobile application)
+* Reactnative (to display elements on a mobile application)
+* Javascript (to animate or create logic)
+* Firebase (to connect with the front end and logic for database queries)
+* Expo (to deploy mobile application)
 
 
 ## 6. Systems Testing
